@@ -30,72 +30,78 @@ function url_service(url){
 }
 
 exports.all = function (req, res) {
-  var url = req.url.substring(req.url.indexOf('?')+1,req.url.length);
+    var url = req.url.substring(req.url.indexOf('?')+1,req.url.length);
 
-  if ( !validate_url( url ) ) {
-    res.status( 400 );
-    return;
-  }
-
-  MongoClient.connect('mongodb://127.0.0.1:27017/urlopedia', function(err, db) {
-    if(err) throw err;
-
-      db.collection('all').find({ 'url': url }  ).limit(10).toArray(function(err, docs) {
-	  if(err) throw err;
-	  console.log( format( "found url %s in cache", url ) );
-          console.dir(docs);
-	  result = docs[0][ 'responses' ]
-	  res.json(result);
-	  return;
-      } )  });
-
-  herdict = Object.create(Herdict.HerdictService);
-  wayback = Object.create(WayBack.WayBackService);
-  mediacloud = Object.create(MediaCloud.MediaCloudService);
-  describing = Object.create(Describing.DescribingAMService);
-
-  Promise.all( [
-    url_service(url),
-    herdict.fetch( url.replace( /^https?:\/\//, '' ) ),
-    //describing.fetch(url),
-    //mediacloud.fetch(url),
-    wayback.fetch(url)
-  ] )
-  .then( function( result ) {
-
-    console.log("storing result in mongo");
-
-    MongoClient.connect('mongodb://127.0.0.1:27017/urlopedia', function(err, db) {
-    if(err) throw err;
-
-    var collection = db.collection('all');
-//	collection.insert(result);
-
-	collection.insert({ 'url': url, 'responses': result}, { 'safe':true },  function(err, docs) {
-
-	    console.log(format("err = %s", err ) )
-      collection.count(function(err, count) {
-          console.log(format("err = %s, count = %s", err, count));
-      });
-
-      // Locate all the entries using find
-      collection.find().toArray(function(err, results) {
-        console.dir(results);
-        // Let's close the db
-        db.close();
-      });
-    });
-  })
-
-    console.log("returning result json");
+    if ( !validate_url( url ) ) {
+	res.status( 400 );
+	return;
+    }
     
-    res.json(result);
-  } )
-  .catch(function (e) {
-    res.status( 500, {
-      error: e
-    } );
-  });
+    MongoClient.connect('mongodb://127.0.0.1:27017/urlopedia', function(err, db) {
+	if(err) throw err;
+	
+	var limit = db.collection('all').find({ 'url': url }  ).limit(1).toArray(function(err, docs) {
+	    if(err) throw err;
+
+	    if ( docs.length > 0 )
+	    {
+		console
+		console.log( format( "found url %s in cache", url ) );
+		console.dir(docs);
+		result = docs[0][ 'responses' ]
+		db.close();
+		res.json(result);
+	    }
+	    else
+	    {
+		herdict = Object.create(Herdict.HerdictService);
+		wayback = Object.create(WayBack.WayBackService);
+		mediacloud = Object.create(MediaCloud.MediaCloudService);
+		describing = Object.create(Describing.DescribingAMService);
+		
+		Promise.all( [
+		    url_service(url),
+		    herdict.fetch( url.replace( /^https?:\/\//, '' ) ),
+		    //describing.fetch(url),
+		    //mediacloud.fetch(url),
+		    wayback.fetch(url)
+		] )
+		    .then( function( result ) {
+			
+			console.log("storing result in mongo");
+			
+			
+			var collection = db.collection('all');
+			//	collection.insert(result);
+			
+			collection.insert({ 'url': url, 'responses': result}, { 'safe':true },  function(err, docs) {
+			    
+			    console.log(format("err = %s", err ) )
+			    collection.count(function(err, count) {
+				console.log(format("err = %s, count = %s", err, count));
+			    });
+			    
+			    // Locate all the entries using find
+			    collection.find().toArray(function(err, results) {
+				console.dir(results);
+				// Let's close the db
+				db.close();
+			    });
+			});
+	    
+		
+			console.log("returning result json");
+		
+			res.json(result);
+		    } )
+		    .catch(function (e) {
+			res.status( 500, {
+			    error: e
+			} );
+		    });
+	    }
+	} );
+    });
 };
 
 exports.herdict = function (req, res) {
