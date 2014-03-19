@@ -37,7 +37,17 @@ exports.all = function (req, res) {
     return;
   }
 
-  
+  MongoClient.connect('mongodb://127.0.0.1:27017/urlopedia', function(err, db) {
+    if(err) throw err;
+
+      db.collection('all').find({ 'url': url }  ).limit(10).toArray(function(err, docs) {
+	  if(err) throw err;
+	  console.log( format( "found url %s in cache", url ) );
+          console.dir(docs);
+	  result = docs[0][ 'responses' ]
+	  res.json(result);
+	  return;
+      } )  });
 
   herdict = Object.create(Herdict.HerdictService);
   wayback = Object.create(WayBack.WayBackService);
